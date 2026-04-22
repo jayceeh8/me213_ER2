@@ -3,7 +3,7 @@
 
 // Motor speed max: 255
 const int MOTOR_SPEED = 255/2;
-
+  
 // Motor and encoder declaration
 // PWM pin = 10, DIR pin = 5
 CytronMD motor (PWM_DIR, 10, 5);
@@ -15,12 +15,12 @@ unsigned long lastPrintTime = 0;
 const int PRINT_INTERVAL = 100; // print encoder data every 100ms
 
 // PID constants
-float targetDegrees = - 90.0;
-float kP = 60;
-float kI = 30;
-float kD = 0.5;
+float targetDegrees = 120.0;
+float kP = 20;
+float kI = 80;
+float kD = 10;
 
-const int MAX_SPEED = 150;
+const int MAX_SPEED = 255;
 const int MIN_SPEED = 25;
 
 float prevError = 0;
@@ -41,6 +41,8 @@ int runPID(float currentDegrees) {
   lastPIDTime = now;
 
   float error = targetDegrees - currentDegrees;
+  // Serial.println("Error ");
+  // Serial.println(error);
 
   // Proportional
   float P = kP * error;
@@ -77,7 +79,7 @@ void setup() {
 }
 
 void loop() {
-  long position = encoder.read();
+  long position = -encoder.read();
   float degrees = encoderToDegrees(position);
 
   if(Serial.available() > 0) {
