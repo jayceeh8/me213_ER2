@@ -24,10 +24,14 @@ DRIVE_AXIS = 3
 STEER_AXIS = 0
 DEADZONE = 0.1
 
-BUTTON_A = 0
-BUTTON_X = 2
+BUTTON_A = 1
+BUTTON_X = 0
+BUTTON_Y= 3
+BUTTON_B = 2
 LEFT_BUMPER = 4
 RIGHT_BUMPER = 5
+LEFT_TRIGGER = 6
+RIGHT_TRIGGER = 7
 
 def apply_deadzone(value):
     return 0.0 if abs(value) < DEADZONE else value
@@ -62,7 +66,8 @@ while True:
     pygame.event.pump()
 
     estop      = gamepad.get_button(BUTTON_A)
-    auto_trigger = gamepad.get_button(BUTTON_X)
+    auto_up = gamepad.get_button(BUTTON_X)
+    auto_down = gamepad.get_button(BUTTON_Y)
     arm_up     = gamepad.get_button(LEFT_BUMPER)
     arm_down   = gamepad.get_button(RIGHT_BUMPER)
 
@@ -70,10 +75,12 @@ while True:
         drive_command = "STOP"
         arm_command   = ""
 
-    elif auto_trigger:
+    elif auto_up:
         drive_command = "DRIVE_STOP"
-        arm_command = "AUTO"
-
+        arm_command = "AUTO UP"
+    elif auto_down:
+        drive_command = "DRIVE_STOP"
+        arm_command = "AUTO DOWN"
     else:
         drive = apply_deadzone(gamepad.get_axis(DRIVE_AXIS))
         steer = apply_deadzone(gamepad.get_axis(STEER_AXIS))

@@ -43,7 +43,8 @@ Encoder arm_encoder(arm_e1, arm_e2);
 unsigned long lastPrintTime = 0;
 const int PRINT_INTERVAL = 1000;
 
-float targetDegrees = 120.0;
+float targetUp = 0;
+float targetDown = 120.0;
 float kP = 20;
 float kI = 80;
 float kD = 10;
@@ -55,13 +56,13 @@ float prevError = 0;
 float integral = 0;
 unsigned long lastPIDTime = 0;
 
-bool autoMode = false;
+String autoMode = "";
 
 float encoderToDegrees(long counts) {
   return (counts / 288.0) * 360;
 }
 
-int runPID(float currentDegrees) {
+int runPID(float targetDegrees, float currentDegrees) {
   unsigned long now = millis();
   float dt = (now - lastPIDTime) / 1000.0;
   lastPIDTime = now;
@@ -84,6 +85,19 @@ int runPID(float currentDegrees) {
   if (rawOutput < 0 && rawOutput > -MIN_SPEED) rawOutput = -MIN_SPEED;
 
   return constrain((int)rawOutput, -MAX_SPEED, MAX_SPEED);
+}
+
+boolean moveArm(int targetDegrees, int armDegrees){
+  float error = targetDegrees - armDegrees;
+    if (abs(error) < 1.0) {
+      arm_motor.setSpeed(0);
+      autoMode = "";
+      serialPrintln("Target reached");
+      return false;
+    } else {
+      int pidOutput = runPID(targetDegrees, armDegrees);
+      arm_motor.setSpeed(pidOutput);
+    }
 }
 
 void setDriveSpeed(int left, int right) {
@@ -109,15 +123,23 @@ void handleCommand(String input) {
   input.trim();
 
   if (input == "STOP") {
-    autoMode = false;
+    autoMode = "";
     integral = 0;
     prevError = 0;
     stopAll();
     serialPrintln("EMERGENCY STOP");
   }
-  else if (input == "AUTO") {
-    autoMode = true;
+  else if (input == "AUTO UP") {
+    autoMode = input;
     setDriveSpeed(0, 0);
+    integral = 0;
+    prevError = 0;
+    lastPIDTime = millis();
+    serialPrintln("AUTO mode started");
+  }
+  else if (input == "AUTO DOWN") {
+    autoMode = input;
+    setDriveSpeed(0,0);
     integral = 0;
     prevError = 0;
     lastPIDTime = millis();
@@ -135,7 +157,7 @@ void handleCommand(String input) {
   else if (input == "DRIVE_STOP") {
     setDriveSpeed(0, 0);
   }
-  else if (input.startsWith("L") && !autoMode) {
+  else if (input.startsWith("L") && autoMode == "") {
     int commaIndex = input.indexOf(',');
     if (commaIndex == -1) return;
     String leftStr = input.substring(1, commaIndex);
@@ -191,16 +213,12 @@ void loop() {
     handleCommand(Serial1.readStringUntil('\n'));
   }
 
-  if (autoMode) {
-    float error = targetDegrees - arm_degrees;
-    if (abs(error) < 1.0) {
-      arm_motor.setSpeed(0);
-      autoMode = false;
-      serialPrintln("Target reached");
-    } else {
-      int pidOutput = runPID(arm_degrees);
-      arm_motor.setSpeed(pidOutput);
-    }
+  if (autoMode == "AUTO UP") {
+    moveArm(targetUp, arm_degrees);
+  }
+
+  if(autoMode == "AUTO DOWN") {
+    moveArm(targetDown, arm_degrees);
   }
 
   unsigned long currentTime = millis();
