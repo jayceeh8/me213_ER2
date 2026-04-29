@@ -45,11 +45,11 @@ const int PRINT_INTERVAL = 1000;
 
 float targetUp = 0;
 float targetDown = 120.0;
-float kP = 25;
-float kI = 80;
+float kP = 20;
+float kI = 90;
 float kD = 10;
 
-const int MAX_SPEED = 255;
+const int MAX_SPEED = 200;
 const int MIN_SPEED = 25;
 
 float prevError = 0;
@@ -124,7 +124,7 @@ boolean moveArm(int targetDegrees, int armDegrees, int direction){
 void setDriveSpeed(int left, int right) {
   left_front_motor.setSpeed(left);
   left_back_motor.setSpeed(left);
-  right_front_motor.setSpeed(-right);
+  right_front_motor.setSpeed(right);
   right_back_motor.setSpeed(-right);
 }
 
