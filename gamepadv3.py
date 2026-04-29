@@ -3,11 +3,13 @@ import serial
 import time
 import threading
 
-SERIAL_PORT = 'COM5'     # Change to your HC-05 COM port
+SERIAL_PORT = 'COM4'    # Change to your HC-05 COM port
 BAUD_RATE = 9600
 
-ser = serial.Serial(SERIAL_PORT, BAUD_RATE)
+ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
 time.sleep(2)
+
+stop_event = threading.Event();
 
 pygame.init()
 pygame.joystick.init()
@@ -36,13 +38,26 @@ RIGHT_TRIGGER = 7
 def apply_deadzone(value):
     return 0.0 if abs(value) < DEADZONE else value
 
+# def read_serial():
+#     while True:
+#         try:
+#             if ser.in_waiting > 0:
+#                 line = ser.readline().decode('utf-8', errors='replace').strip()
+#                 if line:
+#                     print(f"[Arduino]: {line}")
+#         except serial.SerialException:
+#             print("[!] Bluetooth connection lost.")
+#             break
+#         except Exception as e:
+#             print(f"[!] Read error: {e}")
+#             break
+        
 def read_serial():
-    while True:
+    while not stop_event.is_set():
         try:
-            if ser.in_waiting > 0:
-                line = ser.readline().decode('utf-8', errors='replace').strip()
-                if line:
-                    print(f"[Arduino]: {line}")
+            line = ser.readline().decode('utf-8', errors='replace').strip()
+            if line:
+                print(f"[Arduino]: {line}")
         except serial.SerialException:
             print("[!] Bluetooth connection lost.")
             break
@@ -71,10 +86,21 @@ while True:
     arm_up     = gamepad.get_button(LEFT_BUMPER)
     arm_down   = gamepad.get_button(RIGHT_BUMPER)
 
+    
+    # for i in range(gamepad.get_numaxes()):
+    #     val = gamepad.get_axis(i)
+    #     if abs(val) > 0.1:
+    #         print(f"Axis {i}: {val:.2f}")
+    
+    # for i in range(gamepad.get_numbuttons()):
+    #     if gamepad.get_button(i):
+    #         print(f"Button {i} pressed")
+    
+    time.sleep(0.05)
+
     if estop:
         drive_command = "STOP"
         arm_command   = ""
-
     elif auto_up:
         drive_command = "DRIVE_STOP"
         arm_command = "AUTO UP"
@@ -95,8 +121,10 @@ while True:
 
         if arm_up and not arm_down:
             arm_command = "ARM_UP"
+            print("ARM UP PYTHON")
         elif arm_down and not arm_up:
             arm_command = "ARM_DOWN"
+            print("ARM DOWN")
         else:
             arm_command = "ARM_STOP"
 

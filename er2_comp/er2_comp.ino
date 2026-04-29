@@ -1,32 +1,32 @@
 #include "CytronMotorDriver.h"
 #include <Encoder.h>
 
-const bool DEBUG = false;
+const bool DEBUG = true;
 
-const int lf_pwm = 4;
-const int lf_dir = 5;
-const int lf_e1 = 2;
-const int lf_e2 = 3;
+#define lf_pwm 4
+#define lf_dir 5
+#define lf_e1 2
+#define lf_e2 3
 
-const int lb_pwm = 8;
-const int lb_dir = 9;
-const int lb_e1 = 10;
-const int lb_e2 = 11;
+#define lb_pwm 8
+#define lb_dir 9
+#define lb_e1 10
+#define lb_e2 11
 
-const int rf_pwm = 16;
-const int rf_dir = 17;
-const int rf_e1 = 14;
-const int rf_e2 = 15;
+#define rf_pwm 6
+#define rf_dir 7
+#define rf_e1 14
+#define rf_e2 15
 
-const int rb_pwm = 66;
-const int rb_dir = 67;
-const int rb_e1 = 68;
-const int rb_e2 = 69;
+#define rb_pwm 22
+#define rb_dir 23
+#define rb_e1 68
+#define rb_e2 69
 
-const int arm_pwm = 60;
-const int arm_dir = 61;
-const int arm_e1 = 62;
-const int arm_e2 = 63;
+#define arm_pwm 24
+#define arm_dir 25
+#define arm_e1 20
+#define arm_e2 21
 
 CytronMD left_front_motor  (PWM_DIR, lf_pwm, lf_dir);
 CytronMD left_back_motor   (PWM_DIR, lb_pwm, lb_dir);
@@ -45,7 +45,7 @@ const int PRINT_INTERVAL = 1000;
 
 float targetUp = 0;
 float targetDown = 120.0;
-float kP = 20;
+float kP = 25;
 float kI = 80;
 float kD = 10;
 
@@ -60,6 +60,13 @@ String autoMode = "";
 
 float encoderToDegrees(long counts) {
   return (counts / 288.0) * 360;
+}
+
+void serialPrintln(String msg) {
+  if(DEBUG) {
+    Serial.println(msg);
+  }
+  Serial1.println(msg);
 }
 
 int runPID(float targetDegrees, float currentDegrees) {
@@ -87,36 +94,43 @@ int runPID(float targetDegrees, float currentDegrees) {
   return constrain((int)rawOutput, -MAX_SPEED, MAX_SPEED);
 }
 
-boolean moveArm(int targetDegrees, int armDegrees){
+boolean moveArm(int targetDegrees, int armDegrees, int direction){
   float error = targetDegrees - armDegrees;
-    if (abs(error) < 1.0) {
-      arm_motor.setSpeed(0);
-      autoMode = "";
-      serialPrintln("Target reached");
-      return false;
-    } else {
-      int pidOutput = runPID(targetDegrees, armDegrees);
-      arm_motor.setSpeed(pidOutput);
-    }
+  if (abs(error) < 1.0) {
+    arm_motor.setSpeed(0);
+    autoMode = "";
+    serialPrintln("Target reached");
+    return false;
+  } else {
+    int pidOutput = runPID(targetDegrees, armDegrees);
+    arm_motor.setSpeed(direction * pidOutput);
+    return true;
+  }
 }
+// boolean moveArm(int targetDegrees, int armDegrees){
+//   float error = targetDegrees - armDegrees;
+//     if (abs(error) < 1.0) {
+//       arm_motor.setSpeed(0);
+//       autoMode = "";
+//       serialPrintln("Target reached");
+//       return false;
+//     } else {
+//       int pidOutput = runPID(targetDegrees, armDegrees);
+//       arm_motor.setSpeed(pidOutput);
+//       return true;
+//     }
+// }
 
 void setDriveSpeed(int left, int right) {
   left_front_motor.setSpeed(left);
   left_back_motor.setSpeed(left);
-  right_front_motor.setSpeed(right);
-  right_back_motor.setSpeed(right);
+  right_front_motor.setSpeed(-right);
+  right_back_motor.setSpeed(-right);
 }
 
 void stopAll() {
   setDriveSpeed(0, 0);
   arm_motor.setSpeed(0);
-}
-
-void serialPrintln(String msg) {
-  if(DEBUG) {
-    Serial.println(msg);
-  }
-  Serial1.println(msg);
 }
 
 void handleCommand(String input) {
@@ -146,10 +160,12 @@ void handleCommand(String input) {
     serialPrintln("AUTO mode started");
   }
   else if (input == "ARM_UP") {
-    arm_motor.setSpeed(100);
+    serialPrintln("ARM UP ARDUINO");
+    arm_motor.setSpeed(175);
   }
   else if (input == "ARM_DOWN") {
-    arm_motor.setSpeed(-100);
+    serialPrintln("ARM DOWN ARDUINO");
+    arm_motor.setSpeed(-175);
   }
   else if (input == "ARM_STOP") {
     arm_motor.setSpeed(0);
@@ -178,7 +194,11 @@ void setup() {
     Serial.begin(9600);
   }
   Serial1.begin(9600);  // HC-05 on pins 18 (TX1) / 19 (RX1)
+  delay(200);
   stopAll();
+
+  Serial.println("SETUP start");
+
 
   left_front_encoder.write(0);
   left_back_encoder.write(0);
@@ -214,11 +234,11 @@ void loop() {
   }
 
   if (autoMode == "AUTO UP") {
-    moveArm(targetUp, arm_degrees);
+    moveArm(targetUp, arm_degrees, -1);
   }
 
   if(autoMode == "AUTO DOWN") {
-    moveArm(targetDown, arm_degrees);
+    moveArm(targetDown, arm_degrees, 1);
   }
 
   unsigned long currentTime = millis();
