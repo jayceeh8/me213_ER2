@@ -24,7 +24,7 @@ print(f"Connected: {gamepad.get_name()}")
 
 DRIVE_AXIS = 3
 STEER_AXIS = 0
-DEADZONE = 0.1
+DEADZONE = 0.6
 
 BUTTON_A = 1
 BUTTON_X = 0

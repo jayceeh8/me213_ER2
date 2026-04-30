@@ -1,7 +1,9 @@
 #include "CytronMotorDriver.h"
 #include <Encoder.h>
+#include <SoftwareSerial.h>
 
 const bool DEBUG = true;
+SoftwareSerial BTSerial(17, 16);
 
 #define lf_pwm 4
 #define lf_dir 5
@@ -41,16 +43,20 @@ Encoder right_back_encoder(rb_e1, rb_e2);
 Encoder arm_encoder(arm_e1, arm_e2);
 
 unsigned long lastPrintTime = 0;
-const int PRINT_INTERVAL = 1000;
+const int PRINT_INTERVAL = 2000;
 
 float targetUp = 0;
 float targetDown = 120.0;
-float kP = 20;
-float kI = 90;
-float kD = 10;
+// float kP = 20;
+// float kI = 90;
+// float kD = 10;
+
+float kP = 3;
+float kI = 0;
+float kD = 1;
 
 const int MAX_SPEED = 200;
-const int MIN_SPEED = 25;
+const int MIN_SPEED = 0;
 
 float prevError = 0;
 float integral = 0;
@@ -66,7 +72,14 @@ void serialPrintln(String msg) {
   if(DEBUG) {
     Serial.println(msg);
   }
-  Serial1.println(msg);
+  BTSerial.println(msg);
+}
+
+void serialPrint(String msg) {
+  if(DEBUG) {
+    Serial.print(msg);
+  }
+  BTSerial.print(msg);
 }
 
 int runPID(float targetDegrees, float currentDegrees) {
@@ -94,38 +107,42 @@ int runPID(float targetDegrees, float currentDegrees) {
   return constrain((int)rawOutput, -MAX_SPEED, MAX_SPEED);
 }
 
-boolean moveArm(int targetDegrees, int armDegrees, int direction){
+boolean moveArm(int targetDegrees, int armDegrees){
   float error = targetDegrees - armDegrees;
-  if (abs(error) < 1.0) {
+    if (abs(error) < 1.0) {
+      arm_motor.setSpeed(0);
+      autoMode = "";
+      serialPrintln("Target reached");
+      return false;
+    } else {
+      int pidOutput = runPID(targetDegrees, armDegrees);
+      arm_motor.setSpeed(pidOutput);
+      return true;
+    }
+}
+
+boolean moveArm(float targetDegrees, float armDegrees, int direction) {
+  float error = targetDegrees - armDegrees;
+
+  if (abs(error) < 3.0) {   // relaxed tolerance
     arm_motor.setSpeed(0);
     autoMode = "";
     serialPrintln("Target reached");
     return false;
   } else {
     int pidOutput = runPID(targetDegrees, armDegrees);
-    arm_motor.setSpeed(direction * pidOutput);
+
+    arm_motor.setSpeed(pidOutput);
     return true;
   }
 }
-// boolean moveArm(int targetDegrees, int armDegrees){
-//   float error = targetDegrees - armDegrees;
-//     if (abs(error) < 1.0) {
-//       arm_motor.setSpeed(0);
-//       autoMode = "";
-//       serialPrintln("Target reached");
-//       return false;
-//     } else {
-//       int pidOutput = runPID(targetDegrees, armDegrees);
-//       arm_motor.setSpeed(pidOutput);
-//       return true;
-//     }
-// }
 
 void setDriveSpeed(int left, int right) {
   left_front_motor.setSpeed(left);
   left_back_motor.setSpeed(left);
   right_front_motor.setSpeed(right);
   right_back_motor.setSpeed(-right);
+  serialPrintln("motor ON");
 }
 
 void stopAll() {
@@ -161,11 +178,11 @@ void handleCommand(String input) {
   }
   else if (input == "ARM_UP") {
     serialPrintln("ARM UP ARDUINO");
-    arm_motor.setSpeed(175);
+    arm_motor.setSpeed(100);
   }
   else if (input == "ARM_DOWN") {
     serialPrintln("ARM DOWN ARDUINO");
-    arm_motor.setSpeed(-175);
+    arm_motor.setSpeed(-100);
   }
   else if (input == "ARM_STOP") {
     arm_motor.setSpeed(0);
@@ -193,11 +210,12 @@ void setup() {
   if(DEBUG) {
     Serial.begin(9600);
   }
-  Serial1.begin(9600);  // HC-05 on pins 18 (TX1) / 19 (RX1)
+  BTSerial.begin(9600);  // HC-05 on pins 18 (TX1) / 19 (RX1)
   delay(200);
   stopAll();
 
   Serial.println("SETUP start");
+  BTSerial.println("Hello from Arduino Bluetooth FINAL!");
 
 
   left_front_encoder.write(0);
@@ -229,27 +247,27 @@ void loop() {
   }
 
   // Bluetooth serial
-  if (Serial1.available() > 0) {
-    handleCommand(Serial1.readStringUntil('\n'));
+  if (BTSerial.available() > 0) {
+    handleCommand(BTSerial.readStringUntil('\n'));
   }
 
   if (autoMode == "AUTO UP") {
-    moveArm(targetUp, arm_degrees, -1);
+    moveArm(targetUp, arm_degrees);
   }
 
   if(autoMode == "AUTO DOWN") {
-    moveArm(targetDown, arm_degrees, 1);
+    moveArm(targetDown, arm_degrees);
   }
 
   unsigned long currentTime = millis();
   if (currentTime - lastPrintTime >= PRINT_INTERVAL) {
     lastPrintTime = currentTime;
-    serialPrintln("DEGREES");
-    serialPrintln("Arm: "         + String(arm_degrees));
-    serialPrintln("Left front: "  + String(left_front_degrees));
-    serialPrintln("Left back: "   + String(left_back_degrees));
-    serialPrintln("Right front: " + String(right_front_degrees));
-    serialPrintln("Right back: "  + String(right_back_degrees));
+
+    serialPrint("Arm " + String(arm_degrees));
+    serialPrint(", LF: " + String(left_front_degrees));
+    serialPrint(", LB:" + String(left_back_degrees));
+    serialPrint(", RF: " + String(right_front_degrees));
+    serialPrint(", RB: " + String(right_back_degrees));
     serialPrintln("-----------------------------------");
   }
 }
