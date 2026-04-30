@@ -47,11 +47,13 @@ unsigned long lastPrintTime = 0;
 const int PRINT_INTERVAL = 2000;
 
 float targetUp   = 0;
-float targetDown = 120.0;
+float targetDown = 90.0;
 
-float kP = 3;
-float kI = 0;
-float kD = 1;
+float kP = 2;
+float kI = 0.05;
+float kD = 2;
+const float SLOW_ZONE   = 30.0;  // degrees before target to start slowing
+const int APPROACH_FLOOR = 60;   // minimum PWM so arm doesn't stall
 
 const int MAX_SPEED = 200;
 const int MIN_SPEED = 0;
@@ -79,16 +81,36 @@ void serialPrint(String msg) {
 }
 
 // ── PID ───────────────────────────────────────────────────────
+// int runPID(float targetDegrees, float currentDegrees) {
+//   unsigned long now = millis();
+//   float dt = max((now - lastPIDTime) / 1000.0, 0.001); // floor at 1ms
+//   lastPIDTime = now;
+
+//   float error = targetDegrees - currentDegrees;
+//   float P = kP * error;
+
+//   integral += error * dt;
+//   integral = constrain(integral, -50, 50);
+//   float I = kI * integral;
+
+//   float derivative = (error - prevError) / dt;
+//   float D = kD * derivative;
+//   prevError = error;
+
+//   float rawOutput = P + I + D;
+//   return constrain((int)rawOutput, -MAX_SPEED, MAX_SPEED);
+// }
+
 int runPID(float targetDegrees, float currentDegrees) {
   unsigned long now = millis();
-  float dt = (now - lastPIDTime) / 1000.0;
+  float dt = max((now - lastPIDTime) / 1000.0, 0.001); // floor at 1ms
   lastPIDTime = now;
 
   float error = targetDegrees - currentDegrees;
   float P = kP * error;
 
   integral += error * dt;
-  integral = constrain(integral, -50, 50);
+  integral = constrain(integral, -20, 20); // tightened clamp
   float I = kI * integral;
 
   float derivative = (error - prevError) / dt;
@@ -96,10 +118,15 @@ int runPID(float targetDegrees, float currentDegrees) {
   prevError = error;
 
   float rawOutput = P + I + D;
-  if (rawOutput > 0 && rawOutput <  MIN_SPEED) rawOutput =  MIN_SPEED;
-  if (rawOutput < 0 && rawOutput > -MIN_SPEED) rawOutput = -MIN_SPEED;
 
-  return constrain((int)rawOutput, -MAX_SPEED, MAX_SPEED);
+  // Scale max speed down when close to target
+  int dynamicMax = MAX_SPEED;
+  if (abs(error) < SLOW_ZONE) {
+    float fraction = abs(error) / SLOW_ZONE;
+    dynamicMax = (int)(APPROACH_FLOOR + fraction * (MAX_SPEED - APPROACH_FLOOR));
+  }
+
+  return constrain((int)rawOutput, -dynamicMax, dynamicMax);
 }
 
 // ── Arm control ───────────────────────────────────────────────
@@ -163,15 +190,27 @@ void handleCommand(String input) {
     lastPIDTime = millis();
     serialPrintln("AUTO DOWN started");
   }
-  else if (input == "ARM_UP") {
-    autoMode = "";
-    arm_motor.setSpeed(50);
-    serialPrintln("ARM UP");
+  else if (input.startsWith("ARM_UP:")) {
+  autoMode = "";
+  integral = 0;
+  prevError = 0;
+
+  int speed = input.substring(7).toInt();  // after "ARM_UP:"
+  speed = constrain(speed, 0, 255);
+
+  arm_motor.setSpeed(speed);
+  serialPrintln("ARM UP VAR: " + String(speed));
   }
-  else if (input == "ARM_DOWN") {
+  else if (input.startsWith("ARM_DOWN:")) {
     autoMode = "";
-    arm_motor.setSpeed(-50);
-    serialPrintln("ARM DOWN");
+    integral = 0;
+    prevError = 0;
+
+    int speed = input.substring(9).toInt();  // after "ARM_DOWN:"
+    speed = constrain(speed, 0, 255);
+
+    arm_motor.setSpeed(-speed);  // negative for down
+    serialPrintln("ARM DOWN VAR: " + String(speed));
   }
   else if (input == "ARM_STOP") {
     arm_motor.setSpeed(0);
